@@ -6,20 +6,19 @@ const client = createClient({
 
 client.on("error", (err) => console.error("Redis Client Error", err));
 
+let isConnected = false;
+
 export async function connectRedis() {
+  if (isConnected) return client;
   try {
     await client.connect();
+    isConnected = true;
     console.log("Connected to Redis");
-
-    await client.hSet("deepak", {
-      name: "Deepak",
-      sessionId: "12345",
-      surname: "Sinha",
-      age: 30,
-    });
-    const user = await client.hGetAll("deepak");
-    console.log("User data:", JSON.stringify(user));
+    return client;
   } catch (error) {
-    console.error("Error connecting to Redis:", error);
+    console.error("Failed to connect to Redis", error);
+    throw error;
   }
 }
+
+export default client;

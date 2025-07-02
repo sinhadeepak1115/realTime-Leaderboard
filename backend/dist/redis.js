@@ -15,22 +15,21 @@ const client = (0, redis_1.createClient)({
     url: "redis://localhost:6379",
 });
 client.on("error", (err) => console.error("Redis Client Error", err));
+let isConnected = false;
 function connectRedis() {
     return __awaiter(this, void 0, void 0, function* () {
+        if (isConnected)
+            return client;
         try {
             yield client.connect();
+            isConnected = true;
             console.log("Connected to Redis");
-            yield client.hSet("deepak", {
-                name: "Deepak",
-                sessionId: "12345",
-                surname: "Sinha",
-                age: 30,
-            });
-            const user = yield client.hGetAll("deepak");
-            console.log("User data:", JSON.stringify(user));
+            return client;
         }
         catch (error) {
-            console.error("Error connecting to Redis:", error);
+            console.error("Failed to connect to Redis", error);
+            throw error;
         }
     });
 }
+exports.default = client;

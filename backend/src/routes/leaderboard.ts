@@ -1,6 +1,5 @@
-import { Router } from "express";
-import { Request, Response } from "express";
-import { connectRedis } from "../redis";
+import { Router, Request, Response } from "express";
+import client, { connectRedis } from "../redis";
 
 const router = Router();
 
@@ -10,9 +9,35 @@ const router = Router();
 // GET /leaderboard/around/:playerId - Get players around a specific player
 // POST /leaderboard - Submit a new score
 
-router.get("/", (req, res) => {
-  const response = connectRedis().catch(console.error);
-  res.json({ response, message: "Welcome to the Leaderboard API" });
+router.get("/", async (req, res) => {
+  try {
+    await connectRedis();
+    const leaderboard = await client.zRangeWithScores("leaderboard", 0, 99);
+    res.status(200).json(leaderboard);
+  } catch (error) {
+    console.error("Error connecting to Redis:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+router.post("/", async (req: Request, res: Response): Promise<void> => {
+  const { playerId, score } = req.body;
+  if (!playerId || typeof score !== "number") {
+    res.status(400).json({ error: "Invalid input" });
+  }
+  try {
+    await connectRedis();
+    const postScore = await client.zAdd("leaderboard", {
+      score: score,
+      value: playerId,
+    });
+    res
+      .status(201)
+      .json({ message: "Score submitted successfully", postScore });
+  } catch (error) {
+    console.error("Error submitting score:", error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
 });
 
 export default router;
