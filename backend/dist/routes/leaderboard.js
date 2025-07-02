@@ -61,6 +61,41 @@ router.get("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
         res.status(500).json({ error: "Internal Server Error" });
     }
 }));
+router.get("/top/:count", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const count = parseInt(req.params.count, 10);
+    try {
+        yield (0, redis_1.connectRedis)();
+        const leaderboard = yield redis_1.default.zRangeWithScores("leaderboard", 0, count || 10);
+        res.status(200).json(leaderboard);
+    }
+    catch (error) {
+        console.error("Error fetching leaderboard by ID:", error);
+        res.status(500).json({ error: "Internal Server Error" });
+    }
+}));
+router.get("/player/:playerId", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
+    const playerId = req.params.playerId;
+    console.log("Fetching player score for:", playerId);
+    try {
+        yield (0, redis_1.connectRedis)();
+        const [rank, score] = yield redis_1.default
+            .multi()
+            .zRevRank("leaderboard", playerId)
+            .zScore("leaderboard", playerId)
+            .exec();
+        if (rank === null || score === null) {
+            res.status(404).json({ error: "Player not found in leaderboard" });
+            console.log("Player not found:", playerId);
+            return;
+        }
+        console.log("Player found:", playerId, "Rank:", rank, "Score:", score);
+        res.status(200).json({ message: "Player found", playerId, rank, score });
+    }
+    catch (error) {
+        res.status(500).json({ error: "Internal Server Error" });
+        console.error("Error fetching player score:", error);
+    }
+}));
 router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     const { playerId, score } = req.body;
     if (!playerId || typeof score !== "number") {
@@ -68,11 +103,13 @@ router.post("/", (req, res) => __awaiter(void 0, void 0, void 0, function* () {
     }
     try {
         yield (0, redis_1.connectRedis)();
-        yield redis_1.default.zAdd("leaderboard", {
-            score: score,
+        const postScore = yield redis_1.default.zAdd("leaderboard", {
+            score,
             value: playerId,
         });
-        res.status(201).json({ message: "Score submitted successfully" });
+        res
+            .status(201)
+            .json({ message: "Score submitted successfully", postScore });
     }
     catch (error) {
         console.error("Error submitting score:", error);

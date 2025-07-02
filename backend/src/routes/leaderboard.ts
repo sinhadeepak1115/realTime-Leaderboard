@@ -20,6 +20,51 @@ router.get("/", async (req, res) => {
   }
 });
 
+router.get(
+  "/top/:count",
+  async (req: Request, res: Response): Promise<void> => {
+    const count = parseInt(req.params.count, 10);
+    try {
+      await connectRedis();
+      const leaderboard = await client.zRangeWithScores(
+        "leaderboard",
+        0,
+        count || 10,
+      );
+      res.status(200).json(leaderboard);
+    } catch (error) {
+      console.error("Error fetching leaderboard by ID:", error);
+      res.status(500).json({ error: "Internal Server Error" });
+    }
+  },
+);
+
+router.get(
+  "/player/:playerId",
+  async (req: Request, res: Response): Promise<void> => {
+    const playerId = req.params.playerId;
+    console.log("Fetching player score for:", playerId);
+    try {
+      await connectRedis();
+      const [rank, score] = await client
+        .multi()
+        .zRevRank("leaderboard", playerId)
+        .zScore("leaderboard", playerId)
+        .exec();
+      if (rank === null || score === null) {
+        res.status(404).json({ error: "Player not found in leaderboard" });
+        console.log("Player not found:", playerId);
+        return;
+      }
+      console.log("Player found:", playerId, "Rank:", rank, "Score:", score);
+      res.status(200).json({ message: "Player found", playerId, rank, score });
+    } catch (error) {
+      res.status(500).json({ error: "Internal Server Error" });
+      console.error("Error fetching player score:", error);
+    }
+  },
+);
+
 router.post("/", async (req: Request, res: Response): Promise<void> => {
   const { playerId, score } = req.body;
   if (!playerId || typeof score !== "number") {
@@ -28,7 +73,7 @@ router.post("/", async (req: Request, res: Response): Promise<void> => {
   try {
     await connectRedis();
     const postScore = await client.zAdd("leaderboard", {
-      score: score,
+      score,
       value: playerId,
     });
     res
